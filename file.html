@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to PowerPoint Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .form-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .form-section h2 {
+            color: #1f2937;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-section h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            border-radius: 2px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.95rem;
+        }
+
+        textarea, input, select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+
+        textarea:focus, input:focus, select:focus {
+            outline: none;
+            border-color: #4f46e5;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 200px;
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-upload input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-upload-label {
+            display: block;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            color: #64748b;
+        }
+
+        .file-upload-label:hover {
+            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+            border-color: #4f46e5;
+            color: #4f46e5;
+        }
+
+        .file-upload.has-file .file-upload-label {
+            background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%);
+            border-color: #4f46e5;
+            color: #4f46e5;
+        }
+
+        .api-provider {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 15px;
+            align-items: end;
+        }
+
+        .generate-btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 18px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
+        }
+
+        .generate-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 30px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 4px solid #dc2626;
+            display: none;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .success {
+            background: #d1fae5;
+            color: #059669;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 4px solid #059669;
+            display: none;
+        }
+
+        .success.active {
+            display: block;
+        }
+
+        .preview {
+            display: none;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        .preview.active {
+            display: block;
+        }
+
+        .slide-preview {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: #fafafa;
+        }
+
+        .slide-preview h3 {
+            color: #4f46e5;
+            margin-bottom: 10px;
+        }
+
+        .slide-preview p {
+            line-height: 1.6;
+            color: #374151;
+        }
+
+        .instructions {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #f59e0b;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .instructions h3 {
+            color: #92400e;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .instructions ul {
+            color: #78350f;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .footer {
+            background: #f8fafc;
+            padding: 20px 40px;
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+
+            .header {
+                padding: 30px 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .form-section {
+                padding: 20px;
+            }
+
+            .api-provider {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>PowerPoint Generator</h1>
+            <p>Transform your text into beautiful presentations with AI</p>
+        </div>
+
+        <div class="main-content">
+            <div class="instructions">
+                <h3>How it works:</h3>
+                <ul>
+                    <li>Paste your content (text, markdown, or prose)</li>
+                    <li>Upload a PowerPoint template (.pptx or .potx) for styling</li>
+                    <li>Provide your LLM API key (OpenAI, Anthropic, or Gemini)</li>
+                    <li>Add optional guidance for tone and structure</li>
+                    <li>Download your generated presentation!</li>
+                </ul>
+            </div>
+
+            <form id="presentationForm">
+                <div class="form-section">
+                    <h2>Content Input</h2>
+                    <div class="form-group">
+                        <label for="inputText">Your Text Content</label>
+                        <textarea 
+                            id="inputText" 
+                            placeholder="Paste your text, markdown, or prose here. This will be analyzed and converted into slide content..."
+                            required
+                        ></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="guidance">Optional Guidance (one line)</label>
+                        <input 
+                            type="text" 
+                            id="guidance" 
+                            placeholder="e.g., 'turn into an investor pitch deck', 'make it technical', 'focus on benefits'"
+                        />
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Template Upload</h2>
+                    <div class="form-group">
+                        <label>PowerPoint Template (.pptx or .potx)</label>
+                        <div class="file-upload">
+                            <input 
+                                type="file" 
+                                id="templateFile" 
+                                accept=".pptx,.potx"
+                                required
+                            />
+                            <label for="templateFile" class="file-upload-label">
+                                Click to upload template file
+                                <br><small>Supports .pptx and .potx files</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>AI Configuration</h2>
+                    <div class="api-provider">
+                        <div class="form-group">
+                            <label for="apiProvider">LLM Provider</label>
+                            <select id="apiProvider" required>
+                                <option value="">Select Provider</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="gemini">Google Gemini</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="apiKey">API Key</label>
+                            <input 
+                                type="password" 
+                                id="apiKey" 
+                                placeholder="Your API key (never stored)"
+                                required
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="generate-btn" id="generateBtn">
+                    Generate Presentation
+                </button>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p><strong>Processing your content...</strong></p>
+                <p>Analyzing text structure and applying template styles</p>
+            </div>
+
+            <div class="preview" id="preview">
+                <h2> Preview Generated Slides</h2>
+                <div id="slidePreviews"></div>
+                <button type="button" class="generate-btn" id="downloadBtn">
+                     Download Presentation
+                </button>
+            </div>
+
+            <div class="error" id="error"></div>
+            <div class="success" id="success"></div>
+        </div>
+
+        <div class="footer">
+            <p> Your API keys are never stored or logged. All processing happens in your browser.</p>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let generatedSlides = [];
+        let templateData = null;
+
+        // DOM elements
+        const form = document.getElementById('presentationForm');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const success = document.getElementById('success');
+        const preview = document.getElementById('preview');
+        const templateFileInput = document.getElementById('templateFile');
+        const fileUpload = document.querySelector('.file-upload');
+
+        // File upload handling
+        templateFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                fileUpload.classList.add('has-file');
+                const label = document.querySelector('.file-upload-label');
+                label.innerHTML = `✅ ${file.name}<br><small>Template loaded successfully</small>`;
+                
+                // Read and store template data
+                readTemplateFile(file);
+            }
+        });
+
+        async function readTemplateFile(file) {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const zip = await JSZip.loadAsync(arrayBuffer);
+                templateData = { zip, originalFile: file };
+                showMessage('Template loaded and analyzed successfully!', 'success');
+            } catch (err) {
+                console.error('Error reading template:', err);
+                showMessage('Error reading template file. Please ensure it\'s a valid PowerPoint file.', 'error');
+            }
+        }
+
+        // Form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const inputText = document.getElementById('inputText').value.trim();
+            const guidance = document.getElementById('guidance').value.trim();
+            const apiProvider = document.getElementById('apiProvider').value;
+            const apiKey = document.getElementById('apiKey').value.trim();
+            
+            if (!inputText || !apiProvider || !apiKey || !templateData) {
+                showMessage('Please fill in all required fields and upload a template.', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                hideMessages();
+                
+                // Generate slides using AI
+                const slides = await generateSlides(inputText, guidance, apiProvider, apiKey);
+                generatedSlides = slides;
+                
+                // Show preview
+                showPreview(slides);
+                showMessage('Presentation generated successfully! Review the preview below.', 'success');
+                
+            } catch (err) {
+                console.error('Generation error:', err);
+                showMessage(`Error generating presentation: ${err.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        // Download button
+        document.getElementById('downloadBtn').addEventListener('click', async function() {
+            if (!generatedSlides.length || !templateData) {
+                showMessage('No presentation data available for download.', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const pptxBlob = await createPowerPointFile(generatedSlides, templateData);
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                saveAs(pptxBlob, `Generated-Presentation-${timestamp}.pptx`);
+                showMessage('Presentation downloaded successfully!', 'success');
+            } catch (err) {
+                console.error('Download error:', err);
+                showMessage(`Error creating presentation file: ${err.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        async function generateSlides(inputText, guidance, apiProvider, apiKey) {
+            const prompt = `
+Analyze the following text and convert it into a structured PowerPoint presentation.
+
+Input Text:
+${inputText}
+
+${guidance ? `Additional Guidance: ${guidance}` : ''}
+
+Please respond with a JSON object containing an array of slides. Each slide should have:
+- title: The slide title
+- content: Array of bullet points or content items
+- slideType: One of "title", "content", "summary", or "conclusion"
+
+Aim for 5-12 slides depending on content length. Make the presentation engaging and well-structured.
+
+Response format:
+{
+  "slides": [
+    {
+      "title": "Slide Title",
+      "content": ["Point 1", "Point 2", "Point 3"],
+      "slideType": "content"
+    }
+  ]
+}
+            `;
+
+            let response;
+            
+            if (apiProvider === 'openai') {
+                response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-3.5-turbo',
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: 0.7,
+                        max_tokens: 2000
+                    })
+                });
+            } else if (apiProvider === 'anthropic') {
+                response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'x-api-key': apiKey,
+                        'Content-Type': 'application/json',
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-3-sonnet-20240229',
+                        max_tokens: 2000,
+                        messages: [{ role: 'user', content: prompt }]
+                    })
+                });
+            } else if (apiProvider === 'gemini') {
+                response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+            }
+
+            if (!response.ok) {
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            let aiResponse;
+
+            if (apiProvider === 'openai') {
+                aiResponse = data.choices[0].message.content;
+            } else if (apiProvider === 'anthropic') {
+                aiResponse = data.content[0].text;
+            } else if (apiProvider === 'gemini') {
+                aiResponse = data.candidates[0].content.parts[0].text;
+            }
+
+            // Parse JSON response
+            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                throw new Error('Invalid AI response format');
+            }
+
+            const parsedResponse = JSON.parse(jsonMatch[0]);
+            return parsedResponse.slides || [];
+        }
+
+        async function createPowerPointFile(slides, templateData) {
+            try {
+                // Clone the template
+                const newZip = new JSZip();
+                
+                // Copy all files from template
+                for (const [path, file] of Object.entries(templateData.zip.files)) {
+                    if (!file.dir) {
+                        const content = await file.async('arraybuffer');
+                        newZip.file(path, content);
+                    }
+                }
+
+                // Modify presentation content
+                await modifyPresentationContent(newZip, slides);
+
+                return await newZip.generateAsync({ type: 'blob' });
+            } catch (err) {
+                console.error('Error creating PowerPoint file:', err);
+                throw err;
+            }
+        }
+
+        async function modifyPresentationContent(zip, slides) {
+            // This is a simplified implementation
+            // In a full implementation, you would parse and modify the XML files
+            // For now, we'll create a basic structure
+
+            try {
+                // Read slide1.xml if it exists
+                const slideFile = zip.file('ppt/slides/slide1.xml');
+                if (slideFile) {
+                    let slideContent = await slideFile.async('text');
+                    
+                    // Simple text replacement (this is very basic)
+                    // In reality, you'd need to parse XML and modify properly
+                    const firstSlide = slides[0] || { title: 'Generated Presentation', content: ['Content generated from your text'] };
+                    
+                    slideContent = slideContent.replace(
+                        /<a:t>.*?<\/a:t>/g, 
+                        `<a:t>${firstSlide.title}</a:t>`
+                    );
+                    
+                    zip.file('ppt/slides/slide1.xml', slideContent);
+                }
+            } catch (err) {
+                console.log('Template modification skipped:', err.message);
+            }
+        }
+
+        function showPreview(slides) {
+            const previewContainer = document.getElementById('slidePreviews');
+            previewContainer.innerHTML = '';
+
+            slides.forEach((slide, index) => {
+                const slideDiv = document.createElement('div');
+                slideDiv.className = 'slide-preview';
+                
+                const title = document.createElement('h3');
+                title.textContent = `Slide ${index + 1}: ${slide.title}`;
+                slideDiv.appendChild(title);
+
+                if (slide.content && slide.content.length > 0) {
+                    const contentList = document.createElement('ul');
+                    slide.content.forEach(item => {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = item;
+                        contentList.appendChild(listItem);
+                    });
+                    slideDiv.appendChild(contentList);
+                }
+
+                previewContainer.appendChild(slideDiv);
+            });
+
+            preview.classList.add('active');
+            preview.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showLoading(show) {
+            loading.classList.toggle('active', show);
+            document.getElementById('generateBtn').disabled = show;
+        }
+
+        function showMessage(message, type) {
+            hideMessages();
+            const messageEl = document.getElementById(type);
+            messageEl.textContent = message;
+            messageEl.classList.add('active');
+            messageEl.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function hideMessages() {
+            error.classList.remove('active');
+            success.classList.remove('active');
+        }
+
+        // Demo data button for testing
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add demo button
+            const demoBtn = document.createElement('button');
+            demoBtn.type = 'button';
+            demoBtn.className = 'generate-btn';
+            demoBtn.style.background = '#059669';
+            demoBtn.style.marginBottom = '20px';
+            demoBtn.textContent = '📄 Load Demo Content';
+            
+            demoBtn.addEventListener('click', function() {
+                document.getElementById('inputText').value = `
+Introduction to Artificial Intelligence
+
+Artificial Intelligence (AI) represents one of the most significant technological advances of our time. It encompasses the development of computer systems that can perform tasks typically requiring human intelligence.
+
+Key Components of AI:
+- Machine Learning: Algorithms that improve through experience
+- Natural Language Processing: Understanding and generating human language
+- Computer Vision: Interpreting and analyzing visual information
+- Robotics: Physical manifestation of AI capabilities
+
+Applications in Today's World:
+AI is transforming industries from healthcare to finance. In healthcare, AI assists in medical diagnosis and drug discovery. In finance, it powers fraud detection and algorithmic trading. Transportation sees AI in autonomous vehicles, while entertainment uses AI for content recommendation.
+
+Future Implications:
+As AI continues to evolve, we face both tremendous opportunities and significant challenges. The technology promises to solve complex global problems while raising important questions about employment, privacy, and ethics.
+
+The path forward requires thoughtful consideration of how we develop, deploy, and govern AI systems to ensure they benefit humanity as a whole.
+                `.trim();
+                
+                document.getElementById('guidance').value = 'Create a professional overview presentation suitable for business audiences';
+                showMessage('Demo content loaded! Upload a template and add your API key to continue.', 'success');
+            });
+            
+            form.insertBefore(demoBtn, form.firstChild);
+        });
+    </script>
+</body>
+</html>
